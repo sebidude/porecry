@@ -1,40 +1,45 @@
 package kube
 
 import (
-	"io/ioutil"
-	"os"
 	"testing"
-	"time"
 
-	"github.com/sebidude/helmpostcrypt/crypto"
+	"github.com/sebidude/porecry/crypto"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 )
 
-func TestInitKubecryptSecret(t *testing.T) {
-	cert, key, err := crypto.GenerateCertificate("test", nil, time.Duration(10*time.Minute))
-	assert.NoError(t, err, "Cert and key must be generated")
-
+func TestInitSecret(t *testing.T) {
+	key, _ := crypto.GenerateKeyPair(1024)
+	keybytes := crypto.PrivateKeyToBytes(key)
 	t.Run("success", func(t *testing.T) {
-		initError := InitKubecryptSecret(nil, key, cert, "local", "helmsecret", "secret.yaml", true)
+		out, initError := InitSecret(nil, keybytes, "local", "helmsecret")
 		assert.NoError(t, initError, "Secret must be generated")
-	})
 
-	t.Run("fail already exist", func(t *testing.T) {
-		initError := InitKubecryptSecret(nil, key, cert, "local", "helmsecret", "secret.yaml", true)
-		assert.Error(t, initError, "Secret must not be overridden")
+		s, err := SecretsFromManifestBytes(out.Bytes())
+		assert.NoError(t, err, "Secret must be read from bytes")
+		assert.Equal(t, "local", s.Namespace, "Namespace must match")
 	})
-
 }
 
 func TestSecretFromManifestBytes(t *testing.T) {
-	secretBytes, err := ioutil.ReadFile("secret.yaml")
-	assert.NoError(t, err, "File secret.yaml must be read.")
+	key, _ := crypto.GenerateKeyPair(1024)
+	keybytes := crypto.PrivateKeyToBytes(key)
+	out, initError := InitSecret(nil, keybytes, "local", "helmsecret")
+	assert.NoError(t, initError, "Secret must be generated")
 
-	s, err := SecretsFromManifestBytes(secretBytes)
-	assert.NoError(t, err, "Secret must be read from secret.yaml")
-	assert.Equal(t, "Secret", s.TypeMeta.Kind, "Object must be of type Secret.")
-	assert.Equal(t, corev1.SecretType("kubernetes.io/tls"), s.Type, "Secret must be of type kubernetes.io/tls.")
+	t.Run("success", func(t *testing.T) {
+		s, err := SecretsFromManifestBytes(out.Bytes())
+		assert.NoError(t, err, "Secret must be read from secret.yaml")
+		assert.Equal(t, "Secret", s.TypeMeta.Kind, "Object must be of type Secret.")
+		assert.Equal(t, corev1.SecretType("Opaque"), s.Type, "Secret must be of type Opaque.")
+
+	})
+
+	t.Run("fail", func(t *testing.T) {
+		_, err := SecretsFromManifestBytes([]byte("boo"))
+		assert.Error(t, err, "Secret must be read from secret.yaml")
+	})
 
 }
 
@@ -45,9 +50,4 @@ func TestNewSecret(t *testing.T) {
 	s := NewSecret(data, "testsecret")
 	assert.IsType(t, corev1.Secret{}, *s, "Secret must be of type v1.Secret")
 	assert.Equal(t, "test123", string(s.Data["pass"]), "Secret must contain correct data")
-}
-
-func TestCleanup(t *testing.T) {
-	err := os.Remove("secret.yaml")
-	assert.NoError(t, err, "file must be removed.")
 }
