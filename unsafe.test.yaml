@@ -1,0 +1,6 @@
+secret:
+  foo: "[op:encrypt,mode:local,secret:secret.yaml]testme"
+  bar: "[op:encrypt,mode:local,secret:secret.yaml]testyou"
+  newmap:
+    plaintext: tralalla
+    secret: "[op:encrypt,mode:local,secret:secret.yaml]decrypted with local secret"
