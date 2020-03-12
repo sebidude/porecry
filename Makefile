@@ -55,12 +55,12 @@ test:
 	@rm -f secret.yaml
 	@build/linux/$(APPNAME) init --local -s helmcrypt -n local -o secret.yaml
 	@echo -n "Encrypt values: "	
-	@build/linux/$(APPNAME) post --in unsafe.test.yaml --out safe.yaml
+	@build/linux/$(APPNAME) post --local --in unsafe.test.yaml --out safe.yaml
 	@grep tralalla safe.yaml >/dev/null
 	@if grep testme safe.yaml >/dev/null; then exit 1; fi
 	@echo "ok"
 	@echo -n "Decrypt values: "
-	@build/linux/$(APPNAME) post --in safe.yaml -p | grep testme >/dev/null
+	@build/linux/$(APPNAME) post --local --in safe.yaml -p | grep testme >/dev/null
 	@echo "ok"
 	@echo -n "Encrypt and decrypt text: "
 	@echo 123 | build/linux/$(APPNAME) enc --local -s secret.yaml | build/linux/$(APPNAME) dec --local -s secret.yaml | grep 123 >/dev/null
@@ -68,7 +68,7 @@ test:
 	@rm -f secret.yaml
 
 clean-tests:
-	rm safe.yaml mysecret.yaml safemap.yaml
+	rm -f safe.yaml mysecret.yaml safemap.yaml secret.yaml
 
 pack: build-linux
 	@cd build/linux && tar cvfz $(APPNAME)-$(VERSIONTAG).tar.gz $(APPNAME)
