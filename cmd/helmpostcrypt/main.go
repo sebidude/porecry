@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -11,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/alecthomas/kingpin"
 	"github.com/sebidude/helmpostcrypt/crypto"
@@ -41,12 +41,10 @@ var (
 	runlocal     = false
 	plain        = false
 
-	filename   = "-"
-	outfile    = "-"
-	orgs       []string
-	commonName string
-	lifetime   time.Duration
-	pattern    = regexp.MustCompile(`^\[(\w+):(\w+),(\w+):(\w+),(\w+):(.*)\](.*)$`)
+	filename = "-"
+	outfile  = "-"
+
+	pattern = regexp.MustCompile(`^\[(\w+):(\w+),(\w+):(\w+),(\w+):(.*)\](.*)$`)
 )
 
 func main() {
@@ -56,15 +54,11 @@ func main() {
 	app.Flag("local", "Run with a locally stored secret. No cluster interaction possible.").BoolVar(&runlocal)
 	app.Flag("in", "Input file to read from").Short('i').StringVar(&filename)
 	app.Flag("out", "Output file to write the data to").Short('o').StringVar(&outfile)
-	app.Flag("secretname", "The name of the secret to be used").Short('s').Default("kubecrypt").StringVar(&tlssecret)
-	app.Flag("namespace", "The namespace in which the secret should to be initialized").Short('n').Default("kubecrypt").StringVar(&tlsnamespace)
+	app.Flag("secretname", "The name of the secret to be used").Short('s').Default("porecry").StringVar(&tlssecret)
+	app.Flag("namespace", "The namespace in which the secret should to be initialized").Short('n').Default("porecry").StringVar(&tlsnamespace)
 	app.Flag("plain", "Skip base64 encoding for decrypted content").Short('p').BoolVar(&plain)
 
-	init := app.Command("init", "Generate the cert and key and add the secret for kubecrypt to the cluster.")
-	init.Flag("org", "Organisations for the x509 cert.").Short('O').StringsVar(&orgs)
-	init.Flag("cn", "CommonName for the x509 cert.").Default("kubecrypt").Short('C').StringVar(&commonName)
-	init.Flag("lifetime", "duration of the lifetime for the x509 cert.").DurationVar(&lifetime)
-
+	app.Command("init", "Generate the cert and key and add the secret for kubecrypt to the cluster.")
 	app.Command("enc", "encrypt data")
 	app.Command("dec", "decrypt")
 	app.Command("post", "postRenderer for rendered helm templates.")
@@ -132,11 +126,9 @@ func main() {
 	switch operation {
 
 	case "init":
-		pub, priv, err := crypto.GenerateCertificate(commonName, orgs, lifetime)
-		if err != nil {
-			checkError(err)
-		}
-		err = kube.InitKubecryptSecret(clientset, priv, pub, tlsnamespace, tlssecret, outfile, runlocal)
+		priv, _ := crypto.GenerateKeyPair(4096)
+		privbytes := crypto.PrivateKeyToBytes(priv)
+		err := kube.InitSecret(clientset, privbytes, tlsnamespace, tlssecret, outfile, runlocal)
 		checkError(err)
 
 	case "enc":
@@ -160,7 +152,7 @@ func main() {
 		writeOutputToFile(data)
 
 	case "version":
-		fmt.Printf("kubecrypt\n version: %s\n commit: %s\n buildtime: %s\n", appversion, gitcommit, buildtime)
+		fmt.Printf("porecry\n version: %s\n commit: %s\n buildtime: %s\n", appversion, gitcommit, buildtime)
 
 	case "post":
 		inputbytes := readInputFromFile(filename)
@@ -230,35 +222,20 @@ func writeOutputToFile(data []byte) {
 }
 
 func decryptData(data []byte) []byte {
-	s, err := loadKubecryptSecret(tlssecret, tlsnamespace)
-	checkError(err)
-	if _, ok := s.Data["tls.key"]; !ok {
-		checkError(fmt.Errorf("No tls.key found in secret."))
-	}
-
-	keypem := s.Data["tls.key"]
-	key, err := crypto.BytesToPrivateKey(keypem)
+	priv, _, err := loadKeysFromSecret(tlssecret, tlsnamespace)
 	checkError(err)
 
-	cleartext, err := crypto.Decrypt(rand.Reader, key, data)
+	cleartext, err := crypto.Decrypt(rand.Reader, priv, data)
 	checkError(err)
 	return cleartext
 }
 
 func encryptData(data []byte) []byte {
-	// load the cert from the secret
-	var certpem []byte
-	s, err := loadKubecryptSecret(tlssecret, tlsnamespace)
+	// load the key from the secret
+	_, pub, err := loadKeysFromSecret(tlssecret, tlsnamespace)
 	checkError(err)
-	certpem = s.Data["tls.crt"]
 
-	if len(certpem) == 0 {
-		checkError(fmt.Errorf("Failed to load cert for encryption."))
-	}
-
-	rsaPublicKey := crypto.ReadPublicKeyFromCertPem(certpem)
-
-	ciphertext := crypto.Encrypt(rand.Reader, rsaPublicKey, data)
+	ciphertext := crypto.Encrypt(rand.Reader, pub, data)
 	return ciphertext
 }
 
@@ -331,32 +308,35 @@ func getOutputFile() *os.File {
 	return output
 }
 
-func loadKubecryptSecret(secretname, ns string) (*corev1.Secret, error) {
+func loadKeysFromSecret(secretname, ns string) (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	var secret corev1.Secret
+	var err error
 	if runlocal {
 		filename := filepath.Join(secretname)
 		content, err := ioutil.ReadFile(filename)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		kube.SecretsFromManifestBytes(content)
-		return kube.SecretsFromManifestBytes(content)
+		s, err := kube.SecretsFromManifestBytes(content)
+		checkError(err)
+		secret = *s
+	} else {
+		secrets := kube.GetSecretList(clientset, ns)
+		for _, s := range secrets.Items {
+			if s.Name == secretname {
+				secret = s
+				break
+			}
+		}
 	}
 
-	secrets := kube.GetSecretList(clientset, ns)
-	for _, s := range secrets.Items {
-		if s.Name == secretname {
-			return &s, nil
-		}
+	if _, ok := secret.Data["privatekey"]; !ok {
+		checkError(fmt.Errorf("No privatekey found in secret."))
 	}
-	return nil, fmt.Errorf("Secret %s not found in namespace %s", secretname, ns)
-}
 
-func loadSecret(secretname string, ns string) (*corev1.Secret, error) {
-	secrets := kube.GetSecretList(clientset, ns)
-	for _, s := range secrets.Items {
-		if s.Name == secretname {
-			return &s, nil
-		}
-	}
-	return nil, fmt.Errorf("Secret %s not found in namespace %s", secretname, ns)
+	keypem := secret.Data["privatekey"]
+	key, err := crypto.BytesToPrivateKey(keypem)
+	checkError(err)
+
+	return key, key.Public().(*rsa.PublicKey), err
 }

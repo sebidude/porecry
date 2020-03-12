@@ -44,17 +44,16 @@ func SecretsFromManifestBytes(m []byte) (*corev1.Secret, error) {
 	return s, nil
 }
 
-func InitKubecryptSecret(clientset *kubernetes.Clientset, tlskey, tlscert []byte, namespace string, secretname string, outfile string, runlocal bool) error {
+func InitSecret(clientset *kubernetes.Clientset, privbytes []byte, namespace string, secretname string, outfile string, runlocal bool) error {
 	data := make(map[string][]byte)
-	data["tls.key"] = tlskey
-	data["tls.crt"] = tlscert
+	data["privatekey"] = privbytes
 
 	s := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
 			APIVersion: "v1",
 		},
-		Type: corev1.SecretTypeTLS,
+		Type: corev1.SecretTypeOpaque,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: secretname,
 		},

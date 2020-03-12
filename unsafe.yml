@@ -1,12 +1,12 @@
 ---
 secret:
-  foo: "[op:encrypt,mode:cluster,secret:kubecrypt/kubecrypt]testme"
-  bar: "[op:encrypt,mode:cluster,secret:kubecrypt/kubecrypt]testyou"
+  foo: "[op:encrypt,mode:cluster,secret:porecry/porecry]testme"
+  bar: "[op:encrypt,mode:cluster,secret:porecry/porecry]testyou"
   newmap:
     plaintext: tralalla
-    secret: "[op:encrypt,mode:local,secret:secret.yaml]decrypted with local secret"
+    secret: "[op:encrypt,mode:local,secret:porecry.secret.yaml]decrypted with local secret"
 
 ---
 second:
-  foofoo: "[op:encrypt,mode:cluster,secret:kubecrypt/kubecrypt]testme"
-  barbar: "[op:encrypt,mode:cluster,secret:kubecrypt/kubecrypt]testyou"
+  foofoo: "[op:encrypt,mode:cluster,secret:porecry/porecry]testme"
+  barbar: "[op:encrypt,mode:cluster,secret:porecry/porecry]testyou"
