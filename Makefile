@@ -18,7 +18,7 @@ LDFLAGS_WINDOWS := '-extldflags "-static" -s -w $(GITCOMMIT) $(VERSION) $(BUILDT
 
 KUBEAPIVERSION := 1.15
 
-clean: clean-tests
+clean: 
 	rm -rf build
 
 info: 
