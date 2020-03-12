@@ -14,8 +14,8 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin"
-	"github.com/sebidude/helmpostcrypt/crypto"
-	"github.com/sebidude/helmpostcrypt/kube"
+	"github.com/sebidude/porecry/crypto"
+	"github.com/sebidude/porecry/kube"
 
 	gyaml "github.com/ghodss/yaml"
 	"gopkg.in/yaml.v2"
@@ -49,12 +49,12 @@ var (
 
 func main() {
 
-	app := kingpin.New(os.Args[0], "encrypt decrypt data, convert yaml maps to kubernetes secrets and edit kubernetes secrets.")
+	app := kingpin.New(os.Args[0], "encrypt decrypt data.")
 	app.Version(fmt.Sprintf("app: %s - commit: %s - version: %s - buildtime: %s", app.Name, gitcommit, appversion, buildtime))
 	app.Flag("local", "Run with a locally stored secret. No cluster interaction possible.").BoolVar(&runlocal)
 	app.Flag("in", "Input file to read from").Short('i').StringVar(&filename)
 	app.Flag("out", "Output file to write the data to").Short('o').StringVar(&outfile)
-	app.Flag("secretname", "The name of the secret to be used").Short('s').Default("porecry").StringVar(&tlssecret)
+	app.Flag("secret", "The name of the secret to be used").Short('s').Default("porecry").StringVar(&tlssecret)
 	app.Flag("namespace", "The namespace in which the secret should to be initialized").Short('n').Default("porecry").StringVar(&tlsnamespace)
 	app.Flag("plain", "Skip base64 encoding for decrypted content").Short('p').BoolVar(&plain)
 
@@ -128,8 +128,9 @@ func main() {
 	case "init":
 		priv, _ := crypto.GenerateKeyPair(4096)
 		privbytes := crypto.PrivateKeyToBytes(priv)
-		err := kube.InitSecret(clientset, privbytes, tlsnamespace, tlssecret, outfile, runlocal)
+		out, err := kube.InitSecret(clientset, privbytes, tlsnamespace, tlssecret)
 		checkError(err)
+		writeOutputToFile(out.Bytes())
 
 	case "enc":
 		inputbytes := readInputFromFile(filename)
@@ -155,33 +156,38 @@ func main() {
 		fmt.Printf("porecry\n version: %s\n commit: %s\n buildtime: %s\n", appversion, gitcommit, buildtime)
 
 	case "post":
-		inputbytes := readInputFromFile(filename)
-		if len(inputbytes) == 0 {
-			fmt.Println("input is empty")
-			return
-		}
+		runPostRenderer()
+	default:
+		runPostRenderer()
+	}
+}
 
-		r := bytes.NewReader(inputbytes)
-		dec := yaml.NewDecoder(r)
-		dec.SetStrict(true)
+func runPostRenderer() {
+	inputbytes := readInputFromFile(filename)
+	if len(inputbytes) == 0 {
+		fmt.Println("input is empty")
+		return
+	}
 
-		var yamlmap map[string]interface{}
-		for dec.Decode(&yamlmap) == nil {
-			data, err := yaml.Marshal(yamlmap)
-			checkError(err)
+	r := bytes.NewReader(inputbytes)
+	dec := yaml.NewDecoder(r)
+	dec.SetStrict(true)
 
-			err = gyaml.Unmarshal(data, &yamlmap)
-			checkError(err)
+	var yamlmap map[string]interface{}
+	for dec.Decode(&yamlmap) == nil {
+		data, err := yaml.Marshal(yamlmap)
+		checkError(err)
 
-			renderedMap := postRenderer(yamlmap)
-			data, err = yaml.Marshal(renderedMap)
-			checkError(err)
+		err = gyaml.Unmarshal(data, &yamlmap)
+		checkError(err)
 
-			data = append([]byte("---\n"), data...)
-			writeOutputToFile(data)
-			yamlmap = make(map[string]interface{})
+		renderedMap := postRenderer(yamlmap)
+		data, err = yaml.Marshal(renderedMap)
+		checkError(err)
 
-		}
+		data = append([]byte("---\n"), data...)
+		writeOutputToFile(data)
+		yamlmap = make(map[string]interface{})
 
 	}
 }

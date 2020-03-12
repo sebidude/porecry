@@ -1,7 +1,7 @@
-APPNAME := helmpostcrypt
+APPNAME := porecry
 APPSRC := ./cmd/$(APPNAME)
 
-PKG := github.com/sebidude/helmpostcrypt
+PKG := github.com/sebidude/$(APPNAME)
 TEST_PKG_LIST := kube crypto
 
 GITCOMMITHASH := $(shell git log --max-count=1 --pretty="format:%h" HEAD)

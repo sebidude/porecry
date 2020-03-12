@@ -2,8 +2,6 @@ package kube
 
 import (
 	"bytes"
-	"fmt"
-	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +42,7 @@ func SecretsFromManifestBytes(m []byte) (*corev1.Secret, error) {
 	return s, nil
 }
 
-func InitSecret(clientset *kubernetes.Clientset, privbytes []byte, namespace string, secretname string, outfile string, runlocal bool) error {
+func InitSecret(clientset *kubernetes.Clientset, privbytes []byte, namespace string, secretname string) (*bytes.Buffer, error) {
 	data := make(map[string][]byte)
 	data["privatekey"] = privbytes
 
@@ -55,31 +53,16 @@ func InitSecret(clientset *kubernetes.Clientset, privbytes []byte, namespace str
 		},
 		Type: corev1.SecretTypeOpaque,
 		ObjectMeta: metav1.ObjectMeta{
-			Name: secretname,
+			Name:      secretname,
+			Namespace: namespace,
 		},
 		Data: data,
 	}
 
-	if runlocal {
-		_, err := os.Stat(outfile)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		} else if err == nil {
-			return fmt.Errorf("File %s already exist. Will not override.", outfile)
-		}
+	var out bytes.Buffer
+	ToManifest(s, &out)
+	return &out, nil
 
-		out, err := os.Create(outfile)
-		if err != nil {
-			return err
-		}
-		ToManifest(s, out)
-		return nil
-	}
-	_, err := clientset.CoreV1().Secrets(namespace).Create(s)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func NewSecret(data map[string][]byte, name string) *corev1.Secret {
