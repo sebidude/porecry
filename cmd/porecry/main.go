@@ -44,7 +44,7 @@ var (
 	filename = "-"
 	outfile  = "-"
 
-	pattern = regexp.MustCompile(`^\[(\w+):(\w+),(\w+):(\w+),(\w+):(.*)\](.*)$`)
+	pattern = regexp.MustCompile(`\[(\w+):(\w+),(\w+):(\w+),(\w+):(.*)\](.*)`)
 )
 
 func main() {
@@ -266,7 +266,7 @@ func postRenderer(yamlmap map[string]interface{}) map[string]interface{} {
 			operation := submatch[2]
 			mode := submatch[4]
 			tlsinfo = submatch[6]
-			data := submatch[7]
+			data := strings.SplitN(value.(string), "]", 2)[1]
 
 			if mode == "local" {
 				tlssecret = filepath.Join(tlsinfo)

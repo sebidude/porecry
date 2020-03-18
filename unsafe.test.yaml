@@ -4,3 +4,6 @@ secret:
   newmap:
     plaintext: tralalla
     secret: "[op:encrypt,mode:local,secret:secret.yaml]decrypted with local secret"
+    multiline: |- 
+      [op:encrypt,mode:local,secret:secret.yaml]decrypted with local secret
+      blabla blabla
