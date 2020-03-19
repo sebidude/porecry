@@ -4,7 +4,10 @@ secret:
   bar: "[op:encrypt,mode:cluster,secret:porecry/porecry]testyou"
   newmap:
     plaintext: tralalla
-    secret: "[op:encrypt,mode:local,secret:porecry.secret.yaml]decrypted with local secret"
+    secret: "[op:encrypt,mode:local,secret:secret.yaml]decrypted with ]loc[al secret"
+    multiline: |- 
+      [op:encrypt,mode:cluster,secret:porecry/porecry]testme
+      foo bar
 
 ---
 second:

@@ -44,7 +44,8 @@ var (
 	filename = "-"
 	outfile  = "-"
 
-	pattern = regexp.MustCompile(`\[(\w+):(\w+),(\w+):(\w+),(\w+):(.*)\](.*)`)
+	valuePattern   = regexp.MustCompile(`\[([^\]]+)\]([.\s]*)`)
+	porecryPattern = regexp.MustCompile(`(\w+):(\w+),(\w+):(\w+),(\w+):(.*)`)
 )
 
 func main() {
@@ -252,21 +253,30 @@ func postRenderer(yamlmap map[string]interface{}) map[string]interface{} {
 		case map[string]interface{}:
 			renderedMap[k] = postRenderer(value.(map[string]interface{}))
 		case string:
-			match := pattern.FindAllStringSubmatch(value.(string), -1)
+			match := valuePattern.FindAllStringSubmatch(value.(string), -1)
 			if len(match) != 1 {
 				continue
 			}
 
 			submatch := match[0]
-			if len(submatch) != 8 {
+			if len(submatch) != 3 {
+				continue
+			}
+			data := submatch[2]
+
+			porecryMatch := porecryPattern.FindAllStringSubmatch(submatch[1], -1)
+			if len(porecryMatch) != 1 {
+				continue
+			}
+			porecrySubmatch := porecryMatch[0]
+			if len(porecrySubmatch) != 7 {
 				continue
 			}
 			// [op:decrypt,mode:cluster,secret:kubecrypt/kubecrypt]ciphertext
 			//   1   2      3     4       5        6                    7
-			operation := submatch[2]
-			mode := submatch[4]
-			tlsinfo = submatch[6]
-			data := strings.SplitN(value.(string), "]", 2)[1]
+			operation := porecrySubmatch[2]
+			mode := porecrySubmatch[4]
+			tlsinfo = porecrySubmatch[6]
 
 			if mode == "local" {
 				tlssecret = filepath.Join(tlsinfo)
