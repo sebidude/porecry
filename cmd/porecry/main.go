@@ -262,7 +262,7 @@ func postRenderer(yamlmap map[string]interface{}) map[string]interface{} {
 			if len(submatch) != 3 {
 				continue
 			}
-			data := submatch[2]
+			data := strings.SplitAfterN(value.(string), "]", 2)[1]
 
 			porecryMatch := porecryPattern.FindAllStringSubmatch(submatch[1], -1)
 			if len(porecryMatch) != 1 {
