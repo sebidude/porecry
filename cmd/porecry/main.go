@@ -125,6 +125,7 @@ func main() {
 		}
 	} else {
 		namespace = "local"
+		workingkeyname = privatekeyname
 	}
 
 	switch operation {
