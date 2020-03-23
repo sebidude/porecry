@@ -1,6 +1,6 @@
 ---
 secret:
-  foo: "[op:encrypt,mode:cluster,secret:porecry/porecry]testme"
+  foo: "[op:encrypt,mode:cluster,secret:kubecrypt/kubecrypt/tls.key]testme"
   bar: "[op:encrypt,mode:cluster,secret:porecry/porecry]testyou"
   newmap:
     plaintext: tralalla
@@ -8,6 +8,9 @@ secret:
     multiline: |- 
       [op:encrypt,mode:cluster,secret:porecry/porecry]testme
       foo bar
+    plainmultiline: |-
+      this is a multiline
+      foo
 
 ---
 second:

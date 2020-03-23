@@ -31,7 +31,7 @@ dep:
 	@go get -v -d ./...
 
 install: build-linux
-	cp build/linux/$(APPNAME) $$GOPATH/bin/
+	sudo cp build/linux/$(APPNAME) /usr/local/bin/
 	
 build-linux: info dep
 	@echo Building for linux

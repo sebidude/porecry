@@ -34,12 +34,14 @@ var (
 	clientconfig *rest.Config
 	clientset    *kubernetes.Clientset
 
-	namespace    string
-	tlsinfo      string
-	tlssecret    string
-	tlsnamespace string
-	runlocal     = false
-	plain        = false
+	namespace      string
+	tlsinfo        string
+	tlssecret      string
+	tlsnamespace   string
+	privatekeyname string
+	workingkeyname string
+	runlocal       = false
+	plain          = false
 
 	filename = "-"
 	outfile  = "-"
@@ -57,6 +59,7 @@ func main() {
 	app.Flag("out", "Output file to write the data to").Short('o').StringVar(&outfile)
 	app.Flag("secret", "The name of the secret to be used").Short('s').Default("porecry").StringVar(&tlssecret)
 	app.Flag("namespace", "The namespace in which the secret should to be initialized").Short('n').Default("porecry").StringVar(&tlsnamespace)
+	app.Flag("key", "the name of the key in the secret which holds the private key.").Short('k').Default("privatekey").StringVar(&privatekeyname)
 	app.Flag("plain", "Skip base64 encoding for decrypted content").Short('p').BoolVar(&plain)
 
 	app.Command("init", "Generate the cert and key and add the secret for kubecrypt to the cluster.")
@@ -229,7 +232,7 @@ func writeOutputToFile(data []byte) {
 }
 
 func decryptData(data []byte) []byte {
-	priv, _, err := loadKeysFromSecret(tlssecret, tlsnamespace)
+	priv, _, err := loadKeysFromSecret(tlssecret, tlsnamespace, workingkeyname)
 	checkError(err)
 
 	cleartext, err := crypto.Decrypt(rand.Reader, priv, data)
@@ -239,7 +242,7 @@ func decryptData(data []byte) []byte {
 
 func encryptData(data []byte) []byte {
 	// load the key from the secret
-	_, pub, err := loadKeysFromSecret(tlssecret, tlsnamespace)
+	_, pub, err := loadKeysFromSecret(tlssecret, tlsnamespace, workingkeyname)
 	checkError(err)
 
 	ciphertext := crypto.Encrypt(rand.Reader, pub, data)
@@ -284,11 +287,16 @@ func postRenderer(yamlmap map[string]interface{}) map[string]interface{} {
 			} else {
 				runlocal = false
 				tlsinfoparts := strings.Split(tlsinfo, "/")
-				if len(tlsinfoparts) != 2 {
+				if len(tlsinfoparts) < 2 {
 					checkError(fmt.Errorf("Malformed tlsinfo. Use -t namespace/secret."))
 				}
 				tlsnamespace = tlsinfoparts[0]
 				tlssecret = tlsinfoparts[1]
+				if len(tlsinfoparts) == 3 {
+					workingkeyname = tlsinfoparts[2]
+				} else {
+					workingkeyname = privatekeyname
+				}
 			}
 
 			if operation == "encrypt" {
@@ -324,7 +332,7 @@ func getOutputFile() *os.File {
 	return output
 }
 
-func loadKeysFromSecret(secretname, ns string) (*rsa.PrivateKey, *rsa.PublicKey, error) {
+func loadKeysFromSecret(secretname, ns, keyname string) (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	var secret corev1.Secret
 	var err error
 	if runlocal {
@@ -346,11 +354,11 @@ func loadKeysFromSecret(secretname, ns string) (*rsa.PrivateKey, *rsa.PublicKey,
 		}
 	}
 
-	if _, ok := secret.Data["privatekey"]; !ok {
+	if _, ok := secret.Data[keyname]; !ok {
 		checkError(fmt.Errorf("No privatekey found in secret."))
 	}
 
-	keypem := secret.Data["privatekey"]
+	keypem := secret.Data[keyname]
 	key, err := crypto.BytesToPrivateKey(keypem)
 	checkError(err)
 
