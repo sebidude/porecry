@@ -284,6 +284,7 @@ func postRenderer(yamlmap map[string]interface{}) map[string]interface{} {
 			if mode == "local" {
 				tlssecret = filepath.Join(tlsinfo)
 				runlocal = true
+				workingkeyname = privatekeyname
 			} else {
 				runlocal = false
 				tlsinfoparts := strings.Split(tlsinfo, "/")
@@ -355,7 +356,7 @@ func loadKeysFromSecret(secretname, ns, keyname string) (*rsa.PrivateKey, *rsa.P
 	}
 
 	if _, ok := secret.Data[keyname]; !ok {
-		checkError(fmt.Errorf("No privatekey found in secret."))
+		checkError(fmt.Errorf("No privatekey found in secret with key %s.", keyname))
 	}
 
 	keypem := secret.Data[keyname]
