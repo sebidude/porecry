@@ -7,3 +7,6 @@ secret:
     multiline: |- 
       [op:encrypt,mode:local,secret:secret.yaml]decrypted with local secret
       blabla blabla
+  plainmultiline: |-
+    this is a multiline
+    foo: "bla"
