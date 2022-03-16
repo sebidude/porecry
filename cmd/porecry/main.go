@@ -250,73 +250,95 @@ func encryptData(data []byte) []byte {
 	return ciphertext
 }
 
+func renderString(value string) string {
+	match := valuePattern.FindAllStringSubmatch(value, -1)
+	if len(match) != 1 {
+		return value
+	}
+
+	submatch := match[0]
+	if len(submatch) != 3 {
+		return value
+	}
+	data := strings.SplitAfterN(value, "]", 2)[1]
+
+	porecryMatch := porecryPattern.FindAllStringSubmatch(submatch[1], -1)
+	if len(porecryMatch) != 1 {
+		return value
+	}
+	porecrySubmatch := porecryMatch[0]
+	if len(porecrySubmatch) != 7 {
+		return value
+	}
+	// [op:decrypt,mode:cluster,secret:kubecrypt/kubecrypt]ciphertext
+	//   1   2      3     4       5        6                    7
+	operation := porecrySubmatch[2]
+	mode := porecrySubmatch[4]
+	tlsinfo = porecrySubmatch[6]
+
+	if mode == "local" {
+		tlssecret = filepath.Join(tlsinfo)
+		runlocal = true
+		workingkeyname = privatekeyname
+	} else {
+		runlocal = false
+		tlsinfoparts := strings.Split(tlsinfo, "/")
+		if len(tlsinfoparts) < 2 {
+			checkError(fmt.Errorf("Malformed tlsinfo. Use -t namespace/secret."))
+		}
+		tlsnamespace = tlsinfoparts[0]
+		tlssecret = tlsinfoparts[1]
+		if len(tlsinfoparts) == 3 {
+			workingkeyname = tlsinfoparts[2]
+		} else {
+			workingkeyname = privatekeyname
+		}
+	}
+
+	if operation == "encrypt" {
+		c := encryptData([]byte(data))
+		return fmt.Sprintf("[op:decrypt,mode:%s,secret:%s]%s",
+			mode,
+			tlsinfo,
+			base64.RawURLEncoding.EncodeToString(c))
+	} else {
+		s, err := base64.RawURLEncoding.DecodeString(data)
+		checkError(err)
+		c := decryptData(s)
+		if plain {
+			return string(c)
+		} else {
+			return base64.StdEncoding.EncodeToString(c)
+		}
+	}
+}
+
+func renderSlice(yamlSlice []interface{}) []interface{} {
+	renderedSlice := yamlSlice
+	for index, value := range yamlSlice {
+		switch value.(type) {
+		case map[string]interface{}:
+			renderedSlice[index] = postRenderer(value.(map[string]interface{}))
+		case []interface{}:
+			renderedSlice[index] = renderSlice(value.([]interface{}))
+		case string:
+			renderedSlice[index] = renderString(value.(string))
+		}
+	}
+
+	return renderedSlice
+}
+
 func postRenderer(yamlmap map[string]interface{}) map[string]interface{} {
 	renderedMap := yamlmap
 	for k, value := range yamlmap {
 		switch value.(type) {
 		case map[string]interface{}:
 			renderedMap[k] = postRenderer(value.(map[string]interface{}))
+		case []interface{}:
+			renderedMap[k] = renderSlice(value.([]interface{}))
 		case string:
-			match := valuePattern.FindAllStringSubmatch(value.(string), -1)
-			if len(match) != 1 {
-				continue
-			}
-
-			submatch := match[0]
-			if len(submatch) != 3 {
-				continue
-			}
-			data := strings.SplitAfterN(value.(string), "]", 2)[1]
-
-			porecryMatch := porecryPattern.FindAllStringSubmatch(submatch[1], -1)
-			if len(porecryMatch) != 1 {
-				continue
-			}
-			porecrySubmatch := porecryMatch[0]
-			if len(porecrySubmatch) != 7 {
-				continue
-			}
-			// [op:decrypt,mode:cluster,secret:kubecrypt/kubecrypt]ciphertext
-			//   1   2      3     4       5        6                    7
-			operation := porecrySubmatch[2]
-			mode := porecrySubmatch[4]
-			tlsinfo = porecrySubmatch[6]
-
-			if mode == "local" {
-				tlssecret = filepath.Join(tlsinfo)
-				runlocal = true
-				workingkeyname = privatekeyname
-			} else {
-				runlocal = false
-				tlsinfoparts := strings.Split(tlsinfo, "/")
-				if len(tlsinfoparts) < 2 {
-					checkError(fmt.Errorf("Malformed tlsinfo. Use -t namespace/secret."))
-				}
-				tlsnamespace = tlsinfoparts[0]
-				tlssecret = tlsinfoparts[1]
-				if len(tlsinfoparts) == 3 {
-					workingkeyname = tlsinfoparts[2]
-				} else {
-					workingkeyname = privatekeyname
-				}
-			}
-
-			if operation == "encrypt" {
-				c := encryptData([]byte(data))
-				renderedMap[k] = fmt.Sprintf("[op:decrypt,mode:%s,secret:%s]%s",
-					mode,
-					tlsinfo,
-					base64.RawURLEncoding.EncodeToString(c))
-			} else {
-				s, err := base64.RawURLEncoding.DecodeString(data)
-				checkError(err)
-				c := decryptData(s)
-				if plain {
-					renderedMap[k] = string(c)
-				} else {
-					renderedMap[k] = base64.StdEncoding.EncodeToString(c)
-				}
-			}
+			renderedMap[k] = renderString(value.(string))
 		}
 	}
 
