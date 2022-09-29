@@ -2,6 +2,7 @@ package kube
 
 import (
 	"bytes"
+	"context"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,7 +17,9 @@ type Output interface {
 }
 
 func GetSecretList(clientset *kubernetes.Clientset, namespace string) *corev1.SecretList {
-	secrets, err := clientset.CoreV1().Secrets(namespace).List(metav1.ListOptions{})
+	ctx := context.Background()
+	defer ctx.Done()
+	secrets, err := clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
