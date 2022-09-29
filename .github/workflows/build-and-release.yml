@@ -62,5 +62,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: sebidude/kubecrypt:${{ steps.get_version.outputs.VERSION }},sebidude/kubecrypt:latest
+          tags: sebidude/porecry:${{ steps.get_version.outputs.VERSION }},sebidude/porecry:latest
           github-token: ${{ secrets.DOCKER_ACCESSTOKEN }}
