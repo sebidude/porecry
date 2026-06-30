@@ -1,5 +1,7 @@
-# porecry - post-renderer-crypt
+__NOT MAINTAINED ANYMORE__
+This repo is now archived and will not receive any updates
 
+# porecry - post-renderer-crypt
 With Helm >= v3.1.1 there is the possibillity to run a post renderer after the templates has been renderered by helm. porecry is a post-renderer which can be used to decrypt values which are stored encrypted in the values.yaml files which are used to renderer the helm templates.
 
 ## Idea
